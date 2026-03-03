@@ -16,7 +16,7 @@ pipeline {
             steps {
                 echo '📦 Récupération du code depuis GitHub...'
                 git branch: 'master', 
-                    url: 'https://github.com/VOTRE_NOM_UTILISATEUR/meditracker.git'
+                    url: 'https://github.com/Yahya-maani/meditracker.git'
             }
         }
         
