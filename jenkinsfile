@@ -58,15 +58,15 @@ pipeline {
             }
         }
         
-        stage('SonarQube Analysis') {
+       stage('SonarQube Analysis') {
     steps {
         echo '🔍 Analyse SonarQube...'
         script {
             docker.image('sonarsource/sonar-scanner-cli:latest').inside(
-                "--network host -v ${WORKSPACE}:${WORKSPACE} -w ${WORKSPACE}"
+                "--network host -v \"${WORKSPACE}\":\"${WORKSPACE}\" -w \"${WORKSPACE}\""
             ) {
-                sh """
-                    sonar-scanner \
+                bat """
+                    sonar-scanner.bat \
                         -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
                         -Dsonar.sources=. \
                         -Dsonar.host.url=http://localhost:9000 \
