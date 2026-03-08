@@ -1,0 +1,67 @@
+{
+  "dashboard": {
+    "title": "MediTracker - DevOps Metrics",
+    "panels": [
+      {
+        "title": "Deployment Success Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "sum(rate(http_requests_total{status=~'2.*'}[5m])) / sum(rate(http_requests_total[5m])) * 100",
+            "legendFormat": "Success Rate"
+          }
+        ]
+      },
+      {
+        "title": "MTTR (Mean Time To Recovery)",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "avg(incident_resolution_time_seconds)",
+            "legendFormat": "MTTR"
+          }
+        ]
+      },
+      {
+        "title": "Application Availability",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(up{job='kubernetes-pods'}) / count(up{job='kubernetes-pods'}) * 100",
+            "legendFormat": "Availability %"
+          }
+        ]
+      },
+      {
+        "title": "Incidents Count",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "sum(incidents_total)",
+            "legendFormat": "Total Incidents"
+          }
+        ]
+      },
+      {
+        "title": "Release Frequency",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "count(changes(deployment_info[24h]))",
+            "legendFormat": "Releases per day"
+          }
+        ]
+      },
+      {
+        "title": "Active Users",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "active_users",
+            "legendFormat": "Active Users"
+          }
+        ]
+      }
+    ]
+  }
+}

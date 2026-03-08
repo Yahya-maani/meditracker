@@ -5,6 +5,8 @@ from flask import (
 from flask_pymongo import PyMongo
 from bson.objectid import ObjectId
 from werkzeug.security import generate_password_hash, check_password_hash
+from prometheus_client import Counter, Histogram, Gauge, generate_latest, REGISTRY
+import time
 
 if os.path.exists("env.py"):
     import env
@@ -21,6 +23,49 @@ mongo = PyMongo(app)
 # Resource: Adding comments best practices -
 # https://www.askpython.com/python/python-comments
 
+# Prometheus metrics
+REQUEST_COUNT = Counter('http_requests_total', 'Total HTTP requests', ['method', 'endpoint', 'status'])
+REQUEST_DURATION = Histogram('http_request_duration_seconds', 'HTTP request duration', ['method', 'endpoint'])
+DEPLOYMENT_INFO = Gauge('deployment_info', 'Deployment information', ['version', 'status'])
+ACTIVE_USERS = Gauge('active_users', 'Number of active users')
+INCIDENT_COUNTER = Counter('incidents_total', 'Total number of incidents')
+
+
+@app.before_request
+def before_request():
+    request.start_time = time.time()
+
+@app.after_request
+def after_request(response):
+    request_duration = time.time() - request.start_time
+    REQUEST_COUNT.labels(
+        method=request.method,
+        endpoint=request.path,
+        status=response.status_code
+    ).inc()
+    REQUEST_DURATION.labels(
+        method=request.method,
+        endpoint=request.path
+    ).observe(request_duration)
+    return response
+
+# Add metrics endpoint
+@app.route('/metrics')
+def metrics():
+    """Expose Prometheus metrics"""
+    # Update active users if session exists
+    if 'user' in session:
+        ACTIVE_USERS.set(1)
+    else:
+        ACTIVE_USERS.set(0)
+    
+    # Deployment info
+    DEPLOYMENT_INFO.labels(
+        version=os.environ.get('BUILD_NUMBER', 'dev'),
+        status='running'
+    ).set(1)
+    
+    return generate_latest(REGISTRY)
 
 @app.route('/')
 def home():

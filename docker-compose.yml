@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  sonarqube:
+    image: sonarqube:lts-community
+    container_name: sonarqube
+    ports:
+      - "9000:9000"
+    networks:
+      - ci-network
+    environment:
+      - SONAR_ES_BOOTSTRAP_CHECKS_DISABLE=true
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_extensions:/opt/sonarqube/extensions
+      - sonarqube_logs:/opt/sonarqube/logs
+
+  sonar-scanner:
+    image: sonarsource/sonar-scanner-cli:latest
+    container_name: sonar-scanner
+    networks:
+      - ci-network
+    volumes:
+      - ./:/usr/src
+    working_dir: /usr/src
+    command: ["sonar-scanner", "-Dsonar.projectKey=meditracker", "-Dsonar.sources=.", "-Dsonar.host.url=http://sonarqube:9000"]
+
+networks:
+  ci-network:
+    driver: bridge
+
+volumes:
+  sonarqube_data:
+  sonarqube_extensions:
+  sonarqube_logs:

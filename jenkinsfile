@@ -6,6 +6,16 @@ pipeline {
         SONAR_PROJECT_KEY = 'meditracker'
         SONAR_TOKEN = credentials('sonar-token')
         DOCKER_IMAGE = "meditracker:${BUILD_NUMBER}"
+        DOCKER_REGISTRY = 'docker.io/yahyamaani' 
+        K8S_NAMESPACE = 'meditracker'
+        DEPLOYMENT_NAME = 'meditracker-app'
+        CONTAINER_PORT = '5000'
+        
+        // Monitoring metrics
+        DEPLOYMENT_STATUS = 'success'
+        DEPLOYMENT_START_TIME = ''
+        DEPLOYMENT_END_TIME = ''
+        INCIDENT_COUNT = '0'
     }
     
     stages {
@@ -14,7 +24,6 @@ pipeline {
                 echo '📦 Récupération du code...'
                 git branch: 'master', 
                     url: 'https://github.com/Yahya-maani/meditracker.git'
-                   
             }
         }
         
@@ -26,16 +35,13 @@ pipeline {
                         echo "=== Installation des dépendances ==="
                         python --version
                         pip install --upgrade pip
-                        
-                        REM Utilisation du fichier minimaliste
                         pip install -r requirements.txt
-                        
-                        REM Installation des outils de test
-                        pip install pytest pytest-cov flake8
+                        pip install pytest pytest-cov flake8 prometheus_client
                         
                         echo "=== Vérification ==="
                         python -c "import flask; print('Flask OK')"
                         python -c "import pymongo; print('PyMongo OK')"
+                        python -c "import prometheus_client; print('Prometheus OK')"
                     '''
                 }
             }
@@ -48,7 +54,7 @@ pipeline {
                     bat '''
                         echo "=== Lancement des tests ==="
                         if exist test_basic.py (
-                            pytest test_basic.py -v
+                            pytest test_basic.py -v --junitxml=test-results.xml
                         ) else (
                             echo "Test simple : Application chargée"
                             python -c "from app import app; print('Application OK')"
@@ -57,29 +63,25 @@ pipeline {
                 }
             }
         }
-        stage('Check PATH') {
-    steps {
-        bat 'echo %PATH%'
-    }
-}
-      stage('SonarQube Analysis') {
-    steps {
-        echo '🔍 Analyse SonarQube...'
-        withSonarQubeEnv('sonar_integration') {
-            bat """
-                C:\\sonar-scanner-8.0.1.6346-windows-x64\\bin\\sonar-scanner.bat ^
-                    -Dsonar.projectKey=${SONAR_PROJECT_KEY} ^
-                    -Dsonar.sources=. ^
-                    -Dsonar.python.version=3 ^
-                    -Dsonar.sourceEncoding=UTF-8 ^
-                    -Dsonar.exclusions=**/venv/**,**/__pycache__/**,**/.git/**,**/tests/**,**/migrations/**,**/site-packages/**,**/.pyenv*/**,**/Lib/**,**/Python310/**,**/.pytest_cache/**,**/*.pyc ^
-                    -Dsonar.cpd.exclusions=**/tests/**,**/site-packages/**,**/.pyenv*/**,**/Lib/** ^
-                    -Dsonar.python.coverage.reportPaths= ^
-                    -Dsonar.python.xunit.reportPath=
-            """
+        
+        stage('SonarQube Analysis') {
+            steps {
+                echo '🔍 Analyse SonarQube...'
+                withSonarQubeEnv('sonar_integration') {
+                    bat """
+                        C:\\sonar-scanner-8.0.1.6346-windows-x64\\bin\\sonar-scanner.bat ^
+                            -Dsonar.projectKey=${SONAR_PROJECT_KEY} ^
+                            -Dsonar.sources=. ^
+                            -Dsonar.python.version=3 ^
+                            -Dsonar.sourceEncoding=UTF-8 ^
+                            -Dsonar.exclusions=**/venv/**,**/__pycache__/**,**/.git/**,**/tests/**,**/migrations/**,**/site-packages/**,**/.pyenv*/**,**/Lib/**,**/Python310/**,**/.pytest_cache/**,**/*.pyc ^
+                            -Dsonar.cpd.exclusions=**/tests/**,**/site-packages/**,**/.pyenv*/**,**/Lib/** ^
+                            -Dsonar.python.coverage.reportPaths= ^
+                            -Dsonar.python.xunit.reportPath=
+                    """
+                }
+            }
         }
-    }
-}
         
         stage('Quality Gate') {
             steps {
@@ -89,17 +91,199 @@ pipeline {
                 }
             }
         }
+        
+        stage('Docker Build') {
+            steps {
+                echo '🐳 Construction de l\'image Docker...'
+                script {
+                    DEPLOYMENT_START_TIME = sh(script: 'date +%s', returnStdout: true).trim()
+                    
+                    // Build Docker image
+                    bat """
+                        echo "=== Construction de l'image Docker ==="
+                        docker build -t ${DOCKER_IMAGE} .
+                        docker tag ${DOCKER_IMAGE} ${DOCKER_REGISTRY}/${DOCKER_IMAGE}
+                        
+                        echo "=== Scan de sécurité ==="
+                        docker scan ${DOCKER_IMAGE} || echo "Scan optionnel"
+                        
+                        echo "=== Image construite ==="
+                        docker images | grep meditracker
+                    """
+                }
+            }
+        }
+        
+        stage('Docker Push') {
+            steps {
+                echo '📤 Push de l\'image vers le registre...'
+                script {
+                    bat """
+                        echo "=== Push de l'image ==="
+                        docker push ${DOCKER_REGISTRY}/${DOCKER_IMAGE}
+                        
+                        echo "=== Tag latest ==="
+                        docker tag ${DOCKER_IMAGE} ${DOCKER_REGISTRY}/meditracker:latest
+                        docker push ${DOCKER_REGISTRY}/meditracker:latest
+                    """
+                }
+            }
+        }
+        
+        stage('Deploy to Kubernetes') {
+            steps {
+                echo '🚀 Déploiement sur Kubernetes...'
+                script {
+                    try {
+                        // Create namespace if not exists
+                        bat "kubectl create namespace ${K8S_NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -"
+                        
+                        // Update deployment image
+                        bat """
+                            echo "=== Mise à jour du déploiement ==="
+                            kubectl set image deployment/${DEPLOYMENT_NAME} \
+                                ${DEPLOYMENT_NAME}=${DOCKER_REGISTRY}/${DOCKER_IMAGE} \
+                                -n ${K8S_NAMESPACE} --record
+                            
+                            echo "=== Vérification du déploiement ==="
+                            kubectl rollout status deployment/${DEPLOYMENT_NAME} -n ${K8S_NAMESPACE} --timeout=300s
+                            
+                            echo "=== Déploiement réussi ==="
+                            kubectl get pods -n ${K8S_NAMESPACE}
+                        """
+                        
+                        DEPLOYMENT_STATUS = 'success'
+                    } catch (err) {
+                        DEPLOYMENT_STATUS = 'failed'
+                        INCIDENT_COUNT = '1'
+                        error "Échec du déploiement: ${err}"
+                    } finally {
+                        DEPLOYMENT_END_TIME = sh(script: 'date +%s', returnStdout: true).trim()
+                    }
+                }
+            }
+        }
+        
+        stage('Health Check') {
+            steps {
+                echo '🏥 Vérification de la santé de l\'application...'
+                script {
+                    // Wait for application to be ready
+                    sleep(10)
+                    
+                    // Test application endpoints
+                    bat """
+                        echo "=== Test des endpoints ==="
+                        kubectl port-forward service/${DEPLOYMENT_NAME} 5000:5000 -n ${K8S_NAMESPACE} &
+                        sleep 5
+                        curl -f http://localhost:5000/ || exit 1
+                        curl -f http://localhost:5000/metrics || echo "Metrics endpoint OK"
+                        taskkill /F /IM kubectl.exe || true
+                    """
+                }
+            }
+        }
+        
+        stage('Setup Monitoring') {
+            steps {
+                echo '📊 Configuration du monitoring...'
+                script {
+                    // Install Prometheus if not present
+                    bat """
+                        echo "=== Installation de Prometheus ==="
+                        kubectl apply -f kubernetes/monitoring/namespace.yaml || true
+                        kubectl apply -f kubernetes/monitoring/prometheus-config.yaml || true
+                        kubectl apply -f kubernetes/monitoring/prometheus-deployment.yaml || true
+                        
+                        echo "=== Installation de Grafana ==="
+                        kubectl apply -f kubernetes/monitoring/grafana-deployment.yaml || true
+                        
+                        echo "=== Installation de ServiceMonitor ==="
+                        kubectl apply -f kubernetes/monitoring/servicemonitor.yaml || true
+                        
+                        echo "=== Vérification des pods ==="
+                        kubectl get pods -n monitoring
+                    """
+                }
+            }
+        }
+        
+        stage('Export Metrics') {
+            steps {
+                echo '📈 Export des métriques de déploiement...'
+                script {
+                    def mttr = 0
+                    if (DEPLOYMENT_STATUS == 'failed') {
+                        def start = DEPLOYMENT_START_TIME.toInteger()
+                        def end = DEPLOYMENT_END_TIME.toInteger()
+                        mttr = end - start
+                    }
+                    
+                    // Create metrics file
+                    writeFile file: 'deployment-metrics.txt', text: """
+                    # Deployment Metrics
+                    DEPLOYMENT_STATUS=${DEPLOYMENT_STATUS}
+                    DEPLOYMENT_TIMESTAMP=${new Date().format('yyyy-MM-dd HH:mm:ss')}
+                    BUILD_NUMBER=${BUILD_NUMBER}
+                    MTTR_SECONDS=${mttr}
+                    INCIDENT_COUNT=${INCIDENT_COUNT}
+                    DEPLOYMENT_DURATION=${DEPLOYMENT_END_TIME.toInteger() - DEPLOYMENT_START_TIME.toInteger()}
+                    """
+                    
+                    // Push metrics to Prometheus via pushgateway
+                    bat """
+                        echo "=== Push metrics to Prometheus Pushgateway ==="
+                        curl -X POST --data-binary @deployment-metrics.txt \
+                            http://localhost:9091/metrics/job/meditracker_deployment/instance/${BUILD_NUMBER}
+                    """
+                }
+            }
+        }
     }
-    
+    stage('Create Grafana Dashboard') {
+    steps {
+        script {
+            // Import dashboard via API
+            def grafanaApi = "http://grafana.monitoring:3000/api/dashboards/db"
+            def dashboardJson = readFile('kubernetes/monitoring/grafana-dashboard.json')
+            
+            sh """
+                curl -X POST -H "Content-Type: application/json" \
+                    -d '{"dashboard":${dashboardJson},"overwrite":true}' \
+                    http://admin:admin@grafana.monitoring:3000/api/dashboards/db
+            """
+        }
+    }
+}
     post {
         always {
             echo '🧹 Nettoyage terminé'
+            script {
+                // Cleanup old Docker images
+                bat '''
+                    docker image prune -f --filter "until=24h"
+                '''
+            }
+            
+            // Archive metrics
+            archiveArtifacts artifacts: 'deployment-metrics.txt', fingerprint: true
+            junit 'test-results.xml'
         }
+        
         success {
             echo '✅ Pipeline réussi !'
+            script {
+                // Send success notification
+                echo "Déploiement réussi - Build #${BUILD_NUMBER}"
+            }
         }
+        
         failure {
             echo '❌ Pipeline échoué'
+            script {
+                // Send failure notification
+                echo "Échec du déploiement - Build #${BUILD_NUMBER}"
+            }
         }
     }
 }
