@@ -130,7 +130,7 @@ pipeline {
             }
         }
         
-        stage('Deploy to Kubernetes') {
+      stage('Deploy to Kubernetes') {
     steps {
         echo '🚀 Déploiement sur Kubernetes...'
         script {
@@ -145,7 +145,12 @@ pipeline {
                 bat """
                     echo "=== Traitement du fichier de déploiement ==="
                     // Replace variables in deployment file
-                    powershell -Command "\$content = Get-Content kubernetes/deployment.yaml -Raw; \$content = \$content -replace '\\$\\{DOCKER_REGISTRY\\}', '${DOCKER_REGISTRY}' -replace '\\$\\{BUILD_NUMBER\\}', '${BUILD_NUMBER}'; Set-Content -Path kubernetes/deployment-processed.yaml -Value \$content"
+                    powershell -Command "& {
+                        \$content = Get-Content kubernetes/deployment.yaml -Raw
+                        \$content = \$content -replace '\\\$\\{DOCKER_REGISTRY\\}', '${DOCKER_REGISTRY}'
+                        \$content = \$content -replace '\\\$\\{BUILD_NUMBER\\}', '${BUILD_NUMBER}'
+                        Set-Content -Path kubernetes/deployment-processed.yaml -Value \$content
+                    }"
                     
                     echo "=== Application du déploiement ==="
                     kubectl apply -f kubernetes/deployment-processed.yaml -n ${K8S_NAMESPACE}
@@ -167,8 +172,7 @@ pipeline {
             }
         }
     }
-}
-        
+}   
         stage('Health Check') {
             steps {
                 echo '🏥 Vérification de la santé de l\'application...'
