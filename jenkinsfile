@@ -63,8 +63,12 @@ pipeline {
         echo '🔍 Analyse SonarQube...'
         script {
             powershell """
+                # Change to the workspace directory first
+                cd "${WORKSPACE}"
+                
+                # Use current directory (.) for volume mount
                 docker run --rm `
-                    -v "${WORKSPACE}:C:\\workspace" `
+                    -v "\${PWD}:C:\\workspace" `
                     -w "C:\\workspace" `
                     sonarsource/sonar-scanner-cli:latest `
                     sonar-scanner.bat `
