@@ -168,12 +168,12 @@ pipeline {
                 DEPLOYMENT_STATUS = 'failed'
                 INCIDENT_COUNT = '1'
                 error "Échec du déploiement: ${err}"
-            finally {
-    DEPLOYMENT_END_TIME = powershell(script: 'Get-Date -UFormat %s', returnStdout: true).trim()
-
+            } finally {
+                DEPLOYMENT_END_TIME = powershell(script: 'Get-Date -UFormat %s', returnStdout: true).trim()
+            }
         }
     }
-}   
+}
         stage('Health Check') {
             steps {
                 echo '🏥 Vérification de la santé de l\'application...'
