@@ -57,7 +57,11 @@ pipeline {
                 }
             }
         }
-        
+        stage('Check PATH') {
+    steps {
+        bat 'echo %PATH%'
+    }
+}
         stage('SonarQube Analysis') {
             steps {
                 echo '🔍 Analyse SonarQube...'
