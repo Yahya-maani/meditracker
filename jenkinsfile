@@ -93,26 +93,27 @@ pipeline {
         }
         
         stage('Docker Build') {
-            steps {
-                echo '🐳 Construction de l\'image Docker...'
-                script {
-                    DEPLOYMENT_START_TIME = sh(script: 'date +%s', returnStdout: true).trim()
-                    
-                    // Build Docker image
-                    bat """
-                        echo "=== Construction de l'image Docker ==="
-                        docker build -t ${DOCKER_IMAGE} .
-                        docker tag ${DOCKER_IMAGE} ${DOCKER_REGISTRY}/${DOCKER_IMAGE}
-                        
-                        echo "=== Scan de sécurité ==="
-                        docker scan ${DOCKER_IMAGE} || echo "Scan optionnel"
-                        
-                        echo "=== Image construite ==="
-                        docker images | grep meditracker
-                    """
-                }
-            }
+    steps {
+        echo '🐳 Construction de l\'image Docker...'
+        script {
+            // Use PowerShell instead of sh
+            DEPLOYMENT_START_TIME = powershell(script: 'Get-Date -UFormat %s', returnStdout: true).trim()
+            
+            // Build Docker image
+            bat """
+                echo "=== Construction de l'image Docker ==="
+                docker build -t ${DOCKER_IMAGE} .
+                docker tag ${DOCKER_IMAGE} ${DOCKER_REGISTRY}/${DOCKER_IMAGE}
+                
+                echo "=== Scan de sécurité ==="
+                docker scan ${DOCKER_IMAGE} || echo "Scan optionnel"
+                
+                echo "=== Image construite ==="
+                docker images | findstr meditracker
+            """
         }
+    }
+}
         
         stage('Docker Push') {
             steps {
@@ -167,9 +168,9 @@ pipeline {
                 DEPLOYMENT_STATUS = 'failed'
                 INCIDENT_COUNT = '1'
                 error "Échec du déploiement: ${err}"
-            } finally {
-                DEPLOYMENT_END_TIME = sh(script: 'date +%s', returnStdout: true).trim()
-            }
+            finally {
+    DEPLOYMENT_END_TIME = powershell(script: 'Get-Date -UFormat %s', returnStdout: true).trim()
+}
         }
     }
 }   
@@ -248,17 +249,16 @@ pipeline {
                 }
             }
         }
-         stage('Create Grafana Dashboard') {
+        stage('Create Grafana Dashboard') {
     steps {
         script {
-            // Import dashboard via API
-            def grafanaApi = "http://grafana.monitoring:3000/api/dashboards/db"
             def dashboardJson = readFile('kubernetes/monitoring/grafana-dashboard.json')
-            
-            sh """
+            // Use bat instead of sh
+            bat """
+                echo "=== Creating Grafana Dashboard ==="
                 curl -X POST -H "Content-Type: application/json" \
                     -d '{"dashboard":${dashboardJson},"overwrite":true}' \
-                    http://admin:admin@grafana.monitoring:3000/api/dashboards/db
+                    http://admin:admin@grafana.monitoring:3000/api/dashboards/db || echo "Grafana not available"
             """
         }
     }
