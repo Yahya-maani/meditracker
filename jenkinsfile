@@ -72,7 +72,10 @@ pipeline {
                     -Dsonar.sources=. ^
                     -Dsonar.python.version=3 ^
                     -Dsonar.sourceEncoding=UTF-8 ^
-                    -Dsonar.exclusions=**/venv/**,**/__pycache__/**
+                    -Dsonar.exclusions=**/venv/**,**/__pycache__/**,**/.git/**,**/tests/**,**/migrations/** ^
+                    -Dsonar.cpd.exclusions=**/tests/** ^
+                    -Dsonar.python.coverage.reportPaths= ^
+                    -Dsonar.python.xunit.reportPath=
             """
         }
     }
