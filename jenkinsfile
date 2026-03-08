@@ -170,7 +170,7 @@ pipeline {
                 error "Échec du déploiement: ${err}"
             finally {
     DEPLOYMENT_END_TIME = powershell(script: 'Get-Date -UFormat %s', returnStdout: true).trim()
-}
+
         }
     }
 }   
