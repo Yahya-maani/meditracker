@@ -58,31 +58,21 @@ pipeline {
             }
         }
         
-       stage('SonarQube Analysis') {
-    steps {
-        echo '🔍 Analyse SonarQube...'
-        script {
-            powershell """
-                # Change to the workspace directory first
-                cd "${WORKSPACE}"
-                
-                # Use current directory (.) for volume mount
-                docker run --rm `
-                    -v "\${PWD}:C:\\workspace" `
-                    -w "C:\\workspace" `
-                    sonarsource/sonar-scanner-cli:latest `
-                    sonar-scanner.bat `
-                        -Dsonar.projectKey=${SONAR_PROJECT_KEY} `
-                        -Dsonar.sources=. `
-                        -Dsonar.host.url=http://localhost:9000 `
-                        -Dsonar.login=${SONAR_TOKEN} `
-                        -Dsonar.python.version=3 `
-                        -Dsonar.sourceEncoding=UTF-8 `
-                        -Dsonar.exclusions=**/venv/**
-            """
+        stage('SonarQube Analysis') {
+            steps {
+                echo '🔍 Analyse SonarQube...'
+                withSonarQubeEnv('sonar_integration') {
+                    bat """
+                        sonar-scanner.bat ^
+                            -Dsonar.projectKey=${SONAR_PROJECT_KEY} ^
+                            -Dsonar.sources=. ^
+                            -Dsonar.python.version=3 ^
+                            -Dsonar.sourceEncoding=UTF-8 ^
+                            -Dsonar.exclusions=**/venv/**,**/__pycache__/**
+                    """
+                }
+            }
         }
-    }
-}
         
         stage('Quality Gate') {
             steps {
