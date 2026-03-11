@@ -159,10 +159,10 @@ pipeline {
         echo '🚀 Déploiement sur Kubernetes...'
         script {
             try {
-                // FORCER l'utilisation de l'image 65 (avec curl)
+                // 1. SUPPRIMER complètement l'ancien déploiement
                 bat """
-                    echo "=== FORCAGE de l'image 65 ==="
-                    kubectl set image deployment/${DEPLOYMENT_NAME} -n ${K8S_NAMESPACE} meditracker=docker.io/yahyamaani/meditracker:65
+                    echo "=== SUPPRESSION de l'ancien déploiement ==="
+                    kubectl delete deployment ${DEPLOYMENT_NAME} -n ${K8S_NAMESPACE} --ignore-not-found
                 """
                 
                 bat """
@@ -175,16 +175,17 @@ pipeline {
                     kubectl apply -f kubernetes/service.yaml -n ${K8S_NAMESPACE}
                 """
                 
+                // 2. Traitement du fichier de déploiement avec l'IMAGE 67 (la plus récente avec curl)
                 bat """
                     echo "=== Traitement du fichier de déploiement ==="
                     powershell -Command "& {
                         \$content = Get-Content kubernetes/deployment.yaml -Raw
                         \$content = \$content -replace '\\\$\\{DOCKER_REGISTRY\\}', '${DOCKER_REGISTRY}'
-                        \$content = \$content -replace '\\\$\\{BUILD_NUMBER\\}', '${BUILD_NUMBER}'
+                        \$content = \$content -replace '\\\$\\{BUILD_NUMBER\\}', '67'
                         Set-Content -Path kubernetes/deployment-processed.yaml -Value \$content
                     }"
                     
-                    echo "=== Application du déploiement ==="
+                    echo "=== CRÉATION du nouveau déploiement avec l'image 67 ==="
                     kubectl apply -f kubernetes/deployment-processed.yaml -n ${K8S_NAMESPACE}
                     
                     echo "=== Vérification du déploiement ==="
@@ -194,18 +195,20 @@ pipeline {
                     kubectl get pods -n ${K8S_NAMESPACE} -o wide
                 """
                 
-                // ✅ Si succès : utilise wget au lieu de curl
+                // 3. Attendre que les pods soient prêts
+                sleep(30)
+                
+                // 4. ✅ Utiliser curl (maintenant présent)
                 bat """
-                    echo "=== Enregistrement du succès avec wget ==="
-                    kubectl exec -n ${K8S_NAMESPACE} deployment/${DEPLOYMENT_NAME} -- wget -q --post-data="" -O- http://localhost:5000/metrics/deployment-success || echo "Métrique déjà enregistrée"
+                    echo "=== Enregistrement du succès avec curl ==="
+                    kubectl exec -n ${K8S_NAMESPACE} deployment/${DEPLOYMENT_NAME} -- curl -X POST http://localhost:5000/metrics/deployment-success || echo "Métrique déjà enregistrée"
                 """
                 
                 DEPLOYMENT_STATUS = 'success'
             } catch (err) {
-                // ❌ Si échec : utilise wget
                 bat """
-                    echo "=== Enregistrement de l'échec avec wget ==="
-                    kubectl exec -n ${K8S_NAMESPACE} deployment/${DEPLOYMENT_NAME} -- wget -q --post-data="" -O- http://localhost:5000/metrics/deployment-failure || echo "Métrique déjà enregistrée"
+                    echo "=== Enregistrement de l'échec avec curl ==="
+                    kubectl exec -n ${K8S_NAMESPACE} deployment/${DEPLOYMENT_NAME} -- curl -X POST http://localhost:5000/metrics/deployment-failure || echo "Métrique déjà enregistrée"
                 """
                 
                 DEPLOYMENT_STATUS = 'failed'
@@ -222,7 +225,7 @@ pipeline {
                     try {
                         mttr = end.toInteger() - start.toInteger()
                         bat """
-                            kubectl exec -n ${K8S_NAMESPACE} deployment/${DEPLOYMENT_NAME} -- wget -q --post-data="" -O- "http://localhost:5000/metrics/mttr?value=${mttr}" || echo "MTTR enregistré"
+                            kubectl exec -n ${K8S_NAMESPACE} deployment/${DEPLOYMENT_NAME} -- curl -X POST "http://localhost:5000/metrics/mttr?value=${mttr}" || echo "MTTR enregistré"
                         """
                     } catch (Exception e) {
                         echo "⚠️ Impossible de calculer le MTTR: ${e.message}"
