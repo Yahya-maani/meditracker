@@ -11,13 +11,12 @@ pipeline {
         DEPLOYMENT_NAME = 'meditracker-app'
         CONTAINER_PORT = '5000'
         
-        // Monitoring metrics
         DEPLOYMENT_STATUS = 'success'
         DEPLOYMENT_START_TIME = ''
         DEPLOYMENT_END_TIME = ''
         INCIDENT_COUNT = '0'
         
-        // KUBECONFIG for SYSTEM account
+        
         KUBECONFIG = 'C:\\Windows\\System32\\config\\systemprofile\\.kube\\config'
     }
     
@@ -53,7 +52,7 @@ pipeline {
         
         stage('Setup Python') {
             steps {
-                echo '🐍 Configuration de Python...'
+                echo ' Configuration de Python...'
                 withPythonEnv('C:\\Users\\PC\\AppData\\Local\\Programs\\Python\\Python310\\python.exe') {
                     bat '''
                         echo "=== Installation des dépendances ==="
@@ -73,7 +72,7 @@ pipeline {
         
         stage('Run Tests') {
             steps {
-                echo '🧪 Exécution des tests...'
+                echo ' Exécution des tests...'
                 withPythonEnv('C:\\Users\\PC\\AppData\\Local\\Programs\\Python\\Python310\\python.exe') {
                     bat '''
                         echo "=== Lancement des tests ==="
@@ -112,7 +111,7 @@ pipeline {
         
         stage('Quality Gate') {
             steps {
-                echo '✅ Vérification Quality Gate...'
+                echo ' Vérification Quality Gate...'
                 timeout(time: 4, unit: 'MINUTES') {
                     waitForQualityGate abortPipeline: true
                 }
@@ -121,9 +120,9 @@ pipeline {
         
         stage('Docker Build') {
             steps {
-                echo '🐳 Construction de l\'image Docker...'
+                echo 'Construction de l\'image Docker...'
                 script {
-                    // 🔥 FIXED: Handle comma and spaces in timestamp
+                   
                     DEPLOYMENT_START_TIME = powershell(script: '(Get-Date -UFormat %s).Split(",")[0].Trim()', returnStdout: true).trim()
                     
                     bat """
@@ -156,7 +155,7 @@ pipeline {
         
         stage('Deploy to Kubernetes') {
             steps {
-                echo '🚀 Déploiement sur Kubernetes...'
+                echo 'Déploiement sur Kubernetes...'
                 script {
                     try {
                         bat """
@@ -192,10 +191,10 @@ pipeline {
                     } catch (err) {
                         DEPLOYMENT_STATUS = 'failed'
                         INCIDENT_COUNT = '1'
-                        echo "❌ Échec du déploiement: ${err}"
+                        echo " Échec du déploiement: ${err}"
                         error "Échec du déploiement: ${err}"
                     } finally {
-                        // 🔥 FIXED: Handle comma and spaces in timestamp
+                       
                         DEPLOYMENT_END_TIME = powershell(script: '(Get-Date -UFormat %s).Split(",")[0].Trim()', returnStdout: true).trim()
                     }
                 }
@@ -204,7 +203,7 @@ pipeline {
         
         stage('Health Check') {
             steps {
-                echo '🏥 Vérification de la santé...'
+                echo 'Vérification de la santé...'
                 script {
                     sleep(10)
                     bat """
@@ -218,7 +217,7 @@ pipeline {
         
         stage('Setup Monitoring') {
             steps {
-                echo '📊 Configuration du monitoring...'
+                echo 'Configuration du monitoring...'
                 script {
                     bat '''
                         echo "=== Installation de Prometheus ==="
@@ -235,11 +234,10 @@ pipeline {
         
         stage('Export Metrics') {
             steps {
-                echo '📈 Export des métriques...'
+                echo 'Export des métriques...'
                 script {
                     def mttr = 0
                     
-                    // 🔥 FIXED: Parse timestamps safely as strings first
                     def startTimeStr = DEPLOYMENT_START_TIME.toString().trim()
                     def endTimeStr = DEPLOYMENT_END_TIME.toString().trim()
                     
@@ -270,7 +268,7 @@ INCIDENT_COUNT=${INCIDENT_COUNT}
     
     post {
         always {
-            echo '🧹 Nettoyage terminé'
+            echo ' Nettoyage terminé'
             script {
                 bat '''
                     echo "=== Nettoyage des images Docker ==="
@@ -282,17 +280,17 @@ INCIDENT_COUNT=${INCIDENT_COUNT}
                 if (fileExists('test-results.xml')) {
                     junit 'test-results.xml'
                 } else {
-                    echo "✅ Tests skipped - no test results file"
+                    echo "Tests skipped - no test results file"
                 }
             }
         }
         
         success {
-            echo '✅ Pipeline réussi !'
+            echo ' Pipeline réussi !'
         }
         
         failure {
-            echo '❌ Pipeline échoué'
+            echo ' Pipeline échoué'
         }
     }
 }

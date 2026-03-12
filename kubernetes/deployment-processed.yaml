@@ -14,7 +14,7 @@ spec:
     metadata:
       labels:
         app: meditracker
-        build: "56"  # Add this for tracking
+        build: "latest" 
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "5000"
@@ -22,8 +22,8 @@ spec:
     spec:
       containers:
       - name: meditracker
-        # This will be replaced by Jenkins
-        image: docker.io/yahyamaani/meditracker:56
+       
+        image: docker.io/yahyamaani/meditracker:latest
         ports:
         - containerPort: 5000
         env:
@@ -38,7 +38,7 @@ spec:
               name: app-secret
               key: secret-key
         - name: BUILD_NUMBER
-          value: "56"
+          value: "" 
         resources:
           requests:
             memory: "256Mi"
