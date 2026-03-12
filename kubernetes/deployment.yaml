@@ -14,7 +14,7 @@ spec:
     metadata:
       labels:
         app: meditracker
-        build: "${BUILD_NUMBER}"  # Add this for tracking
+        build: "${BUILD_NUMBER}"  
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "5000"
@@ -22,7 +22,7 @@ spec:
     spec:
       containers:
       - name: meditracker
-        # This will be replaced by Jenkins
+        
         image: ${DOCKER_REGISTRY}/meditracker:${BUILD_NUMBER}
         ports:
         - containerPort: 5000
