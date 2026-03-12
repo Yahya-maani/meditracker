@@ -23,7 +23,7 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                echo '📦 Récupération du code...'
+                echo ' Récupération du code...'
                 git branch: 'master', 
                     url: 'https://github.com/Yahya-maani/meditracker.git'
             }
@@ -31,7 +31,7 @@ pipeline {
         
         stage('Verify Kubernetes Config') {
             steps {
-                echo '🔍 Vérification de la configuration Kubernetes...'
+                echo ' Vérification de la configuration Kubernetes...'
                 bat '''
                     echo "=== Kubernetes Debug Info ==="
                     echo "1. Current user: %USERNAME%"
@@ -139,7 +139,7 @@ pipeline {
         
         stage('Docker Push') {
             steps {
-                echo '📤 Push de l\'image vers le registre...'
+                echo ' Push de l\'image vers le registre...'
                 script {
                     bat """
                         echo "=== Push de l'image ==="
@@ -247,7 +247,7 @@ pipeline {
                             def end = endTimeStr.toInteger()
                             mttr = end - start
                         } catch (Exception e) {
-                            echo "⚠️ Could not parse timestamps: ${e.message}"
+                            echo "Could not parse timestamps: ${e.message}"
                         }
                     }
                     
